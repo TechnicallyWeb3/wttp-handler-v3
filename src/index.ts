@@ -293,6 +293,128 @@ export class WttpHandler {
         return { provider, signer, gateway, site };
     }
 
+        
+    /**
+     * Creates a Headers object from a HEADResponseStruct
+     * @param headResponse The HEADResponseStruct to convert
+     * @returns A Headers object with all the relevant HTTP headers
+     */
+    private createHeadersFromHeadResponse(headResponse: HEADResponseStruct): Headers {
+        const headers = new Headers();
+        
+        // Add content type headers
+        const mimeType = ethers.decodeBytes32String(headResponse.metadata.mimeType).trim();
+        if (mimeType) {
+            let contentType = mimeType;
+            
+            // Add charset if present
+            const charset = ethers.decodeBytes32String(headResponse.metadata.charset).trim();
+            if (charset) {
+                contentType += `; charset=${charset}`;
+            }
+            
+            headers.set('Content-Type', contentType);
+        }
+        
+        // Add content encoding if present
+        const encoding = ethers.decodeBytes32String(headResponse.metadata.encoding).trim();
+        if (encoding) {
+            headers.set('Content-Encoding', encoding);
+        }
+        
+        // Add language if present
+        const language = ethers.decodeBytes32String(headResponse.metadata.language).trim();
+        if (language) {
+            headers.set('Content-Language', language);
+        }
+        
+        // Add ETag
+        if (headResponse.etag) {
+            headers.set('ETag', headResponse.etag.toString());
+        }
+        
+        // Add Last-Modified
+        if (headResponse.metadata.lastModified) {
+            const lastModified = new Date(Number(headResponse.metadata.lastModified) * 1000);
+            headers.set('Last-Modified', lastModified.toUTCString());
+        }
+        
+        // Add Content-Length
+        if (headResponse.metadata.size) {
+            headers.set('Content-Length', headResponse.metadata.size.toString());
+        }
+        
+        // Add Cache-Control headers
+        const cacheControl: string[] = [];
+        if (headResponse.headerInfo.cache.maxAge) {
+            cacheControl.push(`max-age=${headResponse.headerInfo.cache.maxAge}`);
+        }
+        // Note: The following properties might not be available in all contract versions
+        // We're checking for their existence before using them
+        const cache = headResponse.headerInfo.cache as any;
+        
+        if (cache.sMaxage) {
+            cacheControl.push(`s-maxage=${cache.sMaxage}`);
+        }
+        if (headResponse.headerInfo.cache.noStore) {
+            cacheControl.push('no-store');
+        }
+        if (headResponse.headerInfo.cache.noCache) {
+            cacheControl.push('no-cache');
+        }
+        if (headResponse.headerInfo.cache.immutableFlag) {
+            cacheControl.push('immutable');
+        }
+        if (headResponse.headerInfo.cache.publicFlag) {
+            cacheControl.push('public');
+        }
+        if (cache.mustRevalidate) {
+            cacheControl.push('must-revalidate');
+        }
+        if (cache.proxyRevalidate) {
+            cacheControl.push('proxy-revalidate');
+        }
+        if (cache.mustUnderstand) {
+            cacheControl.push('must-understand');
+        }
+        if (cache.staleWhileRevalidate) {
+            cacheControl.push(`stale-while-revalidate=${cache.staleWhileRevalidate}`);
+        }
+        if (cache.staleIfError) {
+            cacheControl.push(`stale-if-error=${cache.staleIfError}`);
+        }
+        
+        if (cacheControl.length > 0) {
+            headers.set('Cache-Control', cacheControl.join(', '));
+        }
+        
+        // Add Allow header for supported methods
+        if (headResponse.headerInfo.methods) {
+            const methodsValue = Number(headResponse.headerInfo.methods);
+            const methods: string[] = [];
+            
+            if (methodsValue & 1) methods.push('HEAD');
+            if (methodsValue & 2) methods.push('GET');
+            if (methodsValue & 4) methods.push('PUT');
+            if (methodsValue & 8) methods.push('DELETE');
+            if (methodsValue & 16) methods.push('PATCH');
+            if (methodsValue & 32) methods.push('OPTIONS');
+            if (methodsValue & 64) methods.push('DEFINE');
+            if (methodsValue & 128) methods.push('LOCATE');
+            
+            if (methods.length > 0) {
+                headers.set('Allow', methods.join(', '));
+            }
+        }
+        
+        // Add Location header for redirects
+        if (headResponse.headerInfo.redirect && headResponse.headerInfo.redirect.location) {
+            headers.set('Location', headResponse.headerInfo.redirect.location);
+        }
+        
+        return headers;
+    }
+
     private parseWttpResponse(response: HEADResponseStruct | GETResponseStruct): Response {
         // TODO: implement
         return new Response()
