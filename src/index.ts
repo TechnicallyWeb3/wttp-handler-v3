@@ -152,10 +152,14 @@ export class WttpHandler {
                 // replace redirectUrl with the file this handler chooses based on the client request
             }
 
-            if (redirectUrl.startsWith(".")) {
+            if (redirectUrl.startsWith(".") || redirectUrl.startsWith("/")) {
                 // relative redirect, convert to absolute
-                // CHECK: does this work for parent and child relative paths?
-                redirectUrl = new URL(redirectUrl, wttpUrl.url.origin).href;
+                // For relative paths, we need to use the current URL's pathname as the base
+                const baseUrl = new URL(wttpUrl.url.href);
+                // For paths starting with /, use just the origin
+                const base = redirectUrl.startsWith("/") ? baseUrl.origin : baseUrl.origin + baseUrl.pathname;
+                // Create a new URL with the relative path and the base URL
+                redirectUrl = new URL(redirectUrl, base).href;
             }
             
             // TODO: get recursive in here
@@ -201,16 +205,16 @@ export class WttpHandler {
             throw `Invalid WTTP URL: ${url} - missing host`;
         }
         
-        // Default network
-        let network: WttpNetworkConfig = this.wttpConfig.networks[0]; 
+        // Default network - use the first network in the config (localhost)
+        let network: WttpNetworkConfig = this.wttpConfig.networks.localhost; 
         
         // Check if network is specified in the port section
         if (url.port) {
-            try {
-                url.port = this.getNetworkAlias(url.port);
-                network = this.wttpConfig.networks[url.port];
-            } catch (error) {
-                throw `Invalid WTTP URL: ${url.port} - invalid network: ${error}`;
+            const networkAlias = this.getNetworkAlias(url.port);
+            if (this.wttpConfig.networks[networkAlias]) {
+                network = this.wttpConfig.networks[networkAlias];
+            } else {
+                throw `Invalid WTTP URL: ${url.port} - invalid network alias`;
             }
         }
 
@@ -222,6 +226,8 @@ export class WttpHandler {
                 const resolved = await provider.resolveName(host);
                 if (resolved) {
                     host = resolved;
+                } else {
+                    throw `Could not resolve ENS name: ${host}`;
                 }
             } catch (error) {
                 throw `Invalid WTTP URL: ${host} - invalid ENS name: ${error}`;
@@ -416,8 +422,72 @@ export class WttpHandler {
     }
 
     private parseWttpResponse(response: HEADResponseStruct | GETResponseStruct): Response {
-        // TODO: implement
-        return new Response()
+        // Determine if this is a HEAD or GET response
+        const isGetResponse = 'head' in response && 'data' in response;
+        
+        // Get the appropriate response structure
+        const headResponse = isGetResponse ? (response as GETResponseStruct).head : response as HEADResponseStruct;
+        
+        // Create headers from the response
+        const headers = this.createHeadersFromHeadResponse(headResponse);
+        
+        // Get the status code
+        let statusCode = Number(headResponse.responseLine.code);
+        statusCode = statusCode === 0 ? 500 : statusCode; // 0n is an error, set to 500
+        
+        // Get the status text
+        const statusText = this.getStatusText(statusCode);
+        
+        // Create the response body
+        let body: string | null = null;
+        
+        // If this is a GET response, it will have data
+        if (isGetResponse) {
+            body = (response as GETResponseStruct).data as string;
+        }
+        
+        // Create and return the Response object
+        return new Response(body, {
+            status: statusCode,
+            statusText: statusText,
+            headers: headers
+        });
+    }
+    
+    private getStatusText(statusCode: number): string {
+        const statusTexts: Record<number, string> = {
+            200: 'OK',
+            201: 'Created',
+            202: 'Accepted',
+            204: 'No Content',
+            300: 'Multiple Choices',
+            301: 'Moved Permanently',
+            302: 'Found',
+            303: 'See Other',
+            304: 'Not Modified',
+            307: 'Temporary Redirect',
+            308: 'Permanent Redirect',
+            400: 'Bad Request',
+            401: 'Unauthorized',
+            403: 'Forbidden',
+            404: 'Not Found',
+            405: 'Method Not Allowed',
+            406: 'Not Acceptable',
+            409: 'Conflict',
+            410: 'Gone',
+            413: 'Payload Too Large',
+            414: 'URI Too Long',
+            415: 'Unsupported Media Type',
+            429: 'Too Many Requests',
+            500: 'Internal Server Error',
+            501: 'Not Implemented',
+            502: 'Bad Gateway',
+            503: 'Service Unavailable',
+            504: 'Gateway Timeout',
+            505: 'HTTP Version Not Supported'
+        };
+        
+        return statusTexts[statusCode] || 'Unknown Status';
     }
 
     private getNetworkAlias(alias: string): string {
