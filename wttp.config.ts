@@ -1,6 +1,10 @@
 import { ethers } from "ethers";
-import Web3Site from "./src/interfaces/contracts/Web3Site.json" assert { type: "json" };
-import WttpGateway from "./src/interfaces/contracts/WTTPGatewayV3.json" assert { type: "json" };
+// Import JSON files using dynamic import
+import Web3SiteJson from "./src/interfaces/contracts/Web3Site.json" with { type: "json" };
+import WttpGatewayJson from "./src/interfaces/contracts/WTTPGatewayV3.json" with { type: "json" };
+
+const Web3Site = Web3SiteJson;
+const WttpGateway = WttpGatewayJson;
 
 export const WttpGatewayAbi = WttpGateway.abi;
 export const Web3SiteAbi = Web3Site.abi;
