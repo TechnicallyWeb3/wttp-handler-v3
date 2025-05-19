@@ -20,6 +20,7 @@ export type WttpUrl = {
     network: WttpNetworkConfig;
     host: string;
     path: string;
+    url: URL;
 };
 
 interface WttpRequestInit extends RequestInit {
@@ -40,19 +41,22 @@ export class WttpHandler {
     }
 
     async fetch(
-        url: string,
+        url: string | URL,
         options: WttpRequestInit = {}
     ) : Promise<Response> {
-        if (url.startsWith("http")) {
-            return fetch(url, options);
-        } else if (url.startsWith("wttp://")) {
+        // Convert to string if URL object
+        const urlString = url instanceof URL ? url.href : url;
+        
+        if (urlString.startsWith("http")) {
+            return fetch(urlString, options);
+        } else if (urlString.startsWith("wttp://")) {
             if (!options.signer) {
                 options.signer = this.signer || ethers.Wallet.createRandom(); 
                 // gets the handler's signer or creates a new one if staticSigner is false
             }
-            return this.handleWttpRequest(url, options);
-        } else if (url.startsWith("ipfs://")) {
-            return this.handleIpfsRequest(url, options);
+            return this.handleWttpRequest(urlString, options);
+        } else if (urlString.startsWith("ipfs://")) {
+            return this.handleIpfsRequest(urlString, options);
         } else {
             return this.error505Response();
         }
@@ -62,12 +66,15 @@ export class WttpHandler {
         return new Response("Not Implemented", { status: 505 });
     }
 
-    public async handleWttpRequest(url: string, options: WttpRequestInit) : Promise<Response> {
+    public async handleWttpRequest(url: string | URL, options: WttpRequestInit) : Promise<Response> {
+        // Convert to string if URL object
+        const urlString = url instanceof URL ? url.href : url;
+        
         let wttpUrl: WttpUrl;
         try {
-            wttpUrl = await this.parseWttpUrl(url);
+            wttpUrl = await this.parseWttpUrl(urlString);
         } catch (error) {
-            throw `Parse Error: ${url}: ${error}`;
+            throw `Parse Error: ${urlString}: ${error}`;
         }
         const provider = new ethers.JsonRpcProvider(wttpUrl.network.rpcList[0], wttpUrl.network.chainId);
         
@@ -146,18 +153,15 @@ export class WttpHandler {
             // replace redirectUrl with the file this handler chooses based on the client request
         }
 
-        if (redirectUrl.startsWith("..")) {
-            // relative redirect to a parent directory
-
-        }else if (redirectUrl.startsWith(".")) {
-            // relative redirect
-            
-            // redirectUrl = new URL(redirectUrl, url).toString();
-            // oh I like this better, we'll need to update this handler to use URL objects. 
-            // I'll do that later.
-            const relativePath = redirectUrl.slice(1);
-            redirectUrl = url.slice(0, wttpUrl.path.length) + relativePath;
-            // this is exactly why we need the URL object, path may exclude ? and # parts.
+        if (redirectUrl) {
+            try {
+                // Use URL constructor to handle relative URLs properly
+                // The second parameter is the base URL to resolve against
+                const redirectUrlObj = new URL(redirectUrl, wttpUrl.url.href);
+                redirectUrl = redirectUrlObj.href;
+            } catch (error) {
+                throw `Invalid redirect URL: ${redirectUrl}: ${error}`;
+            }
         }
 
         if (statusCode < 300n) {
@@ -211,35 +215,36 @@ export class WttpHandler {
         });
     }
 
-    public async parseWttpUrl(url: string): Promise<WttpUrl> {
-        if (!url.startsWith("wttp://")) {
-            throw `Invalid Wttp URL: ${url}`;
+    public async parseWttpUrl(urlString: string): Promise<WttpUrl> {
+        if (!urlString.startsWith("wttp://")) {
+            throw `Invalid Wttp URL: ${urlString}`;
         }
 
-        url = url.slice(7);
+        // Create a URL object with a temporary http:// prefix to use URL parsing capabilities
+        // We'll replace this with wttp:// later
+        const tempUrl = new URL(urlString.replace("wttp://", "http://"));
         const protocol = "WTTP/3.0";
-
-        const urlParts = url.split("/");
-        if (!urlParts[0]) {
-            throw `Invalid Wttp URL: ${url} - missing host`;
+        
+        // Extract hostname (without port)
+        let host = tempUrl.hostname;
+        if (!host) {
+            throw `Invalid Wttp URL: ${urlString} - missing host`;
         }
         
-        let host = urlParts[0];
-        let network:WttpNetworkConfig = this.wttpConfig.networks[0]; // pick the first network as default
-
-        const hostParts = host.split(":");
-        if (hostParts.length > 1) {
-            host = hostParts[0];
+        // Default network
+        let network: WttpNetworkConfig = this.wttpConfig.networks[0]; 
+        
+        // Check if network is specified in the port section
+        if (tempUrl.port) {
             try {
-                network = this.wttpConfig.networks[this.getNetworkAlias(hostParts[1])];
+                network = this.wttpConfig.networks[this.getNetworkAlias(tempUrl.port)];
             } catch (error) {
-                throw `Invalid Wttp URL: ${url} - invalid network: ${hostParts[1]}: ${error}`;
+                throw `Invalid Wttp URL: ${urlString} - invalid network: ${tempUrl.port}: ${error}`;
             }
         }
 
         // If the host is an ENS name, resolve it
         if (host.endsWith('.eth')) {
-
             const rpcUrl = network.rpcList[0];
             const provider = new ethers.JsonRpcProvider(rpcUrl);
             try {
@@ -256,14 +261,17 @@ export class WttpHandler {
                 ethers.getAddress(host);
                 // doesn't need to be saved (host = ...) because if it is an invalid address, it will throw an error
             } catch (error) {
-                throw `Invalid Wttp URL: ${url} - invalid host: ${host}: ${error}`;
+                throw `Invalid Wttp URL: ${urlString} - invalid host: ${host}: ${error}`;
             }
         }
 
-        const pathParts = urlParts.slice(1);
-        const path = `/${pathParts.join("/")}`;
+        // Get the path including query parameters and hash
+        const path = tempUrl.pathname || "/";
         
-        return { protocol, network, host, path };
+        // Create a proper URL object with wttp:// protocol
+        const url = new URL(urlString);
+        
+        return { protocol, network, host, path, url };
     }
 
     private getNetworkAlias(alias: string): string {
@@ -278,10 +286,11 @@ export class WttpHandler {
         return aliases[alias] || alias;
     }
 
-    public handleIpfsRequest(url: string, options: RequestInit) : Promise<Response> {
+    public handleIpfsRequest(url: string | URL, options: RequestInit) : Promise<Response> {
         // TODO: implement
+        const urlString = url instanceof URL ? url.href : url;
         return new Promise((resolve, reject) => {
-            reject(new Error("Not implemented"));
+            reject(new Error(`IPFS protocol not implemented for URL: ${urlString}`));
         });
     }
 }
