@@ -16,19 +16,44 @@ export type WttpHandlerConfig = {
 };
 
 export type WttpUrl = {
-    protocol: string;
     network: WttpNetworkConfig;
-    host: string;
-    path: string;
+    url: URL;
 };
+
+export type WttpProvider = {
+    provider: ethers.JsonRpcProvider;
+    signer: ethers.Signer;
+    gateway: WTTPGateway;
+    site: Web3Site;
+};
+
+export type WttpResponseHeaders = {
+    statusCode: number;
+    statusText: string;
+    mimeType: string;
+    charset: string;
+    encoding: string;
+    language: string;
+    version: number;
+    lastModified: number;
+    etag: string;
+}
+
+export type WttpResponse = {
+    headers: WttpResponseHeaders;
+    body: string;
+}
 
 interface WttpRequestInit extends RequestInit {
     signer?: ethers.Signer;
 }
 
+
+
 export class WttpHandler {
     private wttpConfig: WttpConfig;
     private signer: ethers.Signer | undefined;
+    private WTTP_VERSION = "WTTP/3.0";
 
     constructor(_handlerConfig: WttpHandlerConfig) {
         this.wttpConfig = _handlerConfig.wttpConfig;
@@ -40,18 +65,18 @@ export class WttpHandler {
     }
 
     async fetch(
-        url: string,
+        url: string | URL,
         options: WttpRequestInit = {}
     ) : Promise<Response> {
-        if (url.startsWith("http")) {
+        // Convert to string if URL object
+        const urlString = url instanceof URL ? url.href : url;
+        url = new URL(urlString);
+        
+        if (url.protocol.startsWith("http")) {
             return fetch(url, options);
-        } else if (url.startsWith("wttp://")) {
-            if (!options.signer) {
-                options.signer = this.signer || ethers.Wallet.createRandom(); 
-                // gets the handler's signer or creates a new one if staticSigner is false
-            }
+        } else if (url.protocol.startsWith("wttp")) {
             return this.handleWttpRequest(url, options);
-        } else if (url.startsWith("ipfs://")) {
+        } else if (url.protocol.startsWith("ipfs")) {
             return this.handleIpfsRequest(url, options);
         } else {
             return this.error505Response();
@@ -62,120 +87,80 @@ export class WttpHandler {
         return new Response("Not Implemented", { status: 505 });
     }
 
-    public async handleWttpRequest(url: string, options: WttpRequestInit) : Promise<Response> {
+    public async handleWttpRequest(url: URL, options: WttpRequestInit) : Promise<Response> {
+        
         let wttpUrl: WttpUrl;
         try {
-            wttpUrl = await this.parseWttpUrl(url);
+            wttpUrl = await this.validateWttpUrl(url);
         } catch (error) {
-            throw `Parse Error: ${url}: ${error}`;
+            throw `URL Error: ${url.href}: ${error}`;
         }
-        const provider = new ethers.JsonRpcProvider(wttpUrl.network.rpcList[0], wttpUrl.network.chainId);
+
+        let wttpProvider: WttpProvider;
+        options.signer = options.signer || this.signer || ethers.Wallet.createRandom(); 
+
+        try {
+            wttpProvider = await this.getWttpProvider(wttpUrl, options.signer);
+        } catch (error) {
+            throw `Provider Error: ${url.href}: ${error}`;
+        }
         
-        const web3Site = new ethers.Contract(
-            wttpUrl.host, 
-            Web3SiteAbi, 
-            provider
-        ).connect(options.signer || null) as Web3Site;
-
-        const failHeadRequest: HEADRequestStruct = {
-            requestLine: {
-                protocol: "WTTP/3.0",
-                path: "404", // should return 404 since the path doesn't start with a /
-                method: 0
-            },
-            ifModifiedSince: 0,
-            ifNoneMatch: "0x0000000000000000000000000000000000000000"
-        }
-
-        try {
-            const siteFailResponse = await web3Site.HEAD(failHeadRequest);
-            // if the HEAD request returns a 404, then the host is not a valid Web3Site contract
-            const statusCode = siteFailResponse.responseLine.code;
-            if (statusCode !== 404n) {
-                throw `Site responded with ${statusCode} instead of 404`;
-            }
-        } catch(error) {
-            throw `Invalid WTTP Host: ${wttpUrl.host} - invalid contract: ${error}`;
-        }
-
-        const wttpGateway = new ethers.Contract(
-            wttpUrl.network.gateway, 
-            WttpGatewayAbi, 
-            provider
-        ).connect(options.signer || null) as WTTPGateway;
-
-        try {
-            const wttpFailResponse = await wttpGateway.HEAD(wttpUrl.host, failHeadRequest);
-            const statusCode = wttpFailResponse.responseLine.code;
-            if (statusCode !== 404n) {
-                throw `Gateway responded with ${statusCode} instead of 404`;
-            }
-        } catch(error) {
-            throw `Invalid WTTP Gateway: ${wttpUrl.network.gateway}: ${error}`;
-        }
-
-        let wttpResponse: GETResponseStruct | HEADResponseStruct;
-        let response: Response = new Response();
-
         const headRequest: HEADRequestStruct = {
             requestLine: {
-                protocol: "WTTP/3.0",
-                path: wttpUrl.path,
+                protocol: this.WTTP_VERSION,
+                path: wttpUrl.url.pathname,
                 method: 0
             },
-            ifModifiedSince: 0,
-            ifNoneMatch: "0x0000000000000000000000000000000000000000"
+            ifModifiedSince: options.headers?.["If-Modified-Since"] || 0,
+            ifNoneMatch: options.headers?.["If-None-Match"] || ethers.ZeroHash
         }
 
-        const headResponse: HEADResponseStruct = await wttpGateway.HEAD(wttpUrl.host, headRequest);
+        const headResponse: HEADResponseStruct = await wttpProvider.gateway.HEAD(wttpUrl.url.hostname, headRequest);
 
-        let statusCode = BigInt(headResponse.responseLine.code);
-        statusCode = statusCode === 0n ? 500n : statusCode; // 0n is an error, set to 500n
-        let redirectUrl: string = headResponse.headerInfo.redirect.location;
+        let statusCode = Number(headResponse.responseLine.code);
+        statusCode = statusCode === 0 ? 500 : statusCode; // 0n is an error, set to 500n
         const redirectType = options.redirect || 'follow';
 
-        if (statusCode === 300n && redirectType === 'follow') {
-            // 300 Multiple Choices
-            // client may pass "Accepts*" headers to specify the type of response, in this
-            // case we should perform a GET request on this url to get a directory listing
-            // of the available resources so this handler can choose the correct one as per
-            // the options.headers directives. If no Accepts* header is passed, we should
-            // carry on as a normal redirect to the default redirect location.
-            statusCode = 302n; // converts to a temporary redirect once a file is chosen
-            redirectUrl = headResponse.headerInfo.redirect.location;
-            // replace redirectUrl with the file this handler chooses based on the client request
+        if (redirectType === 'error' && statusCode >= 300 && statusCode < 400) {
+            return new Promise((resolve, reject) => {
+                reject(new Error("Redirect Error: Redirect found, to avoid this error, leave the redirect option empty or set to 'manual'"));
+            });
         }
 
-        if (redirectUrl.startsWith("..")) {
-            // relative redirect to a parent directory
-
-        }else if (redirectUrl.startsWith(".")) {
-            // relative redirect
-            
-            // redirectUrl = new URL(redirectUrl, url).toString();
-            // oh I like this better, we'll need to update this handler to use URL objects. 
-            // I'll do that later.
-            const relativePath = redirectUrl.slice(1);
-            redirectUrl = url.slice(0, wttpUrl.path.length) + relativePath;
-            // this is exactly why we need the URL object, path may exclude ? and # parts.
+        if (
+            options.method === 'HEAD' || // HEAD request, no body
+            statusCode === 304 || // 304 Not Modified, no body, use cached response
+            (statusCode >= 300 && redirectType !== 'follow') || // not following redirect
+            statusCode >= 400 // error, no body
+        ) { // return the response as is, no need to continue with a GET request
+            return this.parseWttpResponse(headResponse);
         }
 
-        if (statusCode < 300n) {
-            // success response
-
-        } else if (statusCode >= 300n && statusCode < 400n) {
+        if (statusCode >= 300 && redirectType === 'follow') {
             // redirect response
-            // all redirect codes are to find the final end-point
-            // recursively call fetch with the new url
-            // must detect if the redirect is a loop
-            if (options.redirect === 'error') {
-                return new Promise((resolve, reject) => {
-                    reject(new Error("Redirect found"));
-                });
+            let redirectUrl: string = headResponse.headerInfo.redirect.location;
+
+            if (statusCode === 300) {
+                // 300 Multiple Choices
+                // client may pass "Accepts*" headers to specify the type of response, in this
+                // case we should perform a GET request on this url to get a directory listing
+                // of the available resources so this handler can choose the correct one as per
+                // the options.headers directives. If no Accepts* header is passed, we should
+                // carry on as a normal redirect to the default redirect location.
+                statusCode = 302; // converts to a temporary redirect once a file is chosen
+                redirectUrl = headResponse.headerInfo.redirect.location || './index.html';
+                // replace redirectUrl with the file this handler chooses based on the client request
             }
 
-        } else if (statusCode >= 400n && statusCode < 500n) {
-            // client error response
+            if (redirectUrl.startsWith(".")) {
+                // relative redirect, convert to absolute
+                // CHECK: does this work for parent and child relative paths?
+                redirectUrl = new URL(redirectUrl, wttpUrl.url.origin).href;
+            }
+            
+            // TODO: get recursive in here
+            // TODO: detect if the redirect is a loop
+
 
         }
 
@@ -196,50 +181,41 @@ export class WttpHandler {
                     end: rangeEnd
                 }
             }
-            wttpResponse = await wttpGateway.GET(wttpUrl.host, getRequest);
-            
-        } else if (options.method === "HEAD") {
-            wttpResponse = await wttpGateway.HEAD(wttpUrl.host, headRequest);
-        } else {
-            return new Promise((resolve, reject) => {
-                reject(new Error("Not implemented"));
-            });
+            const getResponse = await wttpProvider.gateway.GET(wttpUrl.url.hostname, getRequest);
+            return this.parseWttpResponse(getResponse);
         }
 
         return new Promise((resolve, reject) => {
-            reject(new Error("Not implemented"));
+            reject(new Error("Not Implemented"));
         });
     }
 
-    public async parseWttpUrl(url: string): Promise<WttpUrl> {
-        if (!url.startsWith("wttp://")) {
-            throw `Invalid Wttp URL: ${url}`;
-        }
-
-        url = url.slice(7);
-        const protocol = "WTTP/3.0";
-
-        const urlParts = url.split("/");
-        if (!urlParts[0]) {
-            throw `Invalid Wttp URL: ${url} - missing host`;
+    public async validateWttpUrl(url: URL): Promise<WttpUrl> {
+        if (!url.protocol.startsWith("wttp")) {
+            throw `Invalid Wttp URL: ${url.protocol} - invalid protocol`;
         }
         
-        let host = urlParts[0];
-        let network:WttpNetworkConfig = this.wttpConfig.networks[0]; // pick the first network as default
-
-        const hostParts = host.split(":");
-        if (hostParts.length > 1) {
-            host = hostParts[0];
+        // Extract hostname (without port)
+        let host = url.hostname;
+        if (!host) {
+            throw `Invalid WTTP URL: ${url} - missing host`;
+        }
+        
+        // Default network
+        let network: WttpNetworkConfig = this.wttpConfig.networks[0]; 
+        
+        // Check if network is specified in the port section
+        if (url.port) {
             try {
-                network = this.wttpConfig.networks[this.getNetworkAlias(hostParts[1])];
+                url.port = this.getNetworkAlias(url.port);
+                network = this.wttpConfig.networks[url.port];
             } catch (error) {
-                throw `Invalid Wttp URL: ${url} - invalid network: ${hostParts[1]}: ${error}`;
+                throw `Invalid WTTP URL: ${url.port} - invalid network: ${error}`;
             }
         }
 
         // If the host is an ENS name, resolve it
         if (host.endsWith('.eth')) {
-
             const rpcUrl = network.rpcList[0];
             const provider = new ethers.JsonRpcProvider(rpcUrl);
             try {
@@ -248,22 +224,78 @@ export class WttpHandler {
                     host = resolved;
                 }
             } catch (error) {
-                throw `Failed to resolve ENS name ${host}: ${error}`;
-            }
-        } else {
-            try {
-                // use ethers to validate the host is a valid address/domain
-                ethers.getAddress(host);
-                // doesn't need to be saved (host = ...) because if it is an invalid address, it will throw an error
-            } catch (error) {
-                throw `Invalid Wttp URL: ${url} - invalid host: ${host}: ${error}`;
+                throw `Invalid WTTP URL: ${host} - invalid ENS name: ${error}`;
             }
         }
-
-        const pathParts = urlParts.slice(1);
-        const path = `/${pathParts.join("/")}`;
         
-        return { protocol, network, host, path };
+        try {
+            // use ethers to validate the host is a valid address/domain
+            host = ethers.getAddress(host);
+            ethers.isAddress(host);
+        } catch (error) {
+            throw `Invalid WTTP URL: ${host} - invalid ethers address: ${error}`;
+        }
+
+        // Set the fully resolved and checksummed host
+        url.hostname = host;
+
+        // Get the path including query parameters and hash
+        url.pathname = url.pathname || "/";
+        
+        return { network, url };
+    }
+
+    public async getWttpProvider(wttpUrl: WttpUrl, signer: ethers.Signer): Promise<WttpProvider> {
+        const provider = new ethers.JsonRpcProvider(wttpUrl.network.rpcList[0], wttpUrl.network.chainId);
+        const site = new ethers.Contract(
+            wttpUrl.url.hostname, 
+            Web3SiteAbi, 
+            provider
+        ).connect(signer) as Web3Site;
+
+        const failHeadRequest: HEADRequestStruct = {
+            requestLine: {
+                protocol: this.WTTP_VERSION,
+                path: "404", // should return 404 since the path doesn't start with a /
+                method: 0
+            },
+            ifModifiedSince: 0,
+            ifNoneMatch: "0x0000000000000000000000000000000000000000"
+        }
+
+        try {
+            const siteFailResponse = await site.HEAD(failHeadRequest);
+            // if the HEAD request returns a 404, then the host is not a valid Web3Site contract
+            const statusCode = siteFailResponse.responseLine.code;
+            if (statusCode !== 404n) {
+                throw `Site responded with ${statusCode} instead of 404`;
+            }
+        } catch(error) {
+            throw `Invalid WTTP Host: ${wttpUrl.url.hostname} - invalid contract: ${error}`;
+        }
+
+        const gateway = new ethers.Contract(
+            wttpUrl.network.gateway, 
+            WttpGatewayAbi, 
+            provider
+        ).connect(signer || null) as WTTPGateway;
+
+        try {
+            const wttpFailResponse = await gateway.HEAD(wttpUrl.url.hostname, failHeadRequest);
+            const statusCode = wttpFailResponse.responseLine.code;
+            if (statusCode !== 404n) {
+                throw `Gateway responded with ${statusCode} instead of 404`;
+            }
+        } catch(error) {
+            throw `Invalid WTTP Gateway: ${wttpUrl.network.gateway}: ${error}`;
+        }
+
+        return { provider, signer, gateway, site };
+    }
+
+    private parseWttpResponse(response: HEADResponseStruct | GETResponseStruct): Response {
+        // TODO: implement
+        return new Response()
     }
 
     private getNetworkAlias(alias: string): string {
@@ -278,10 +310,11 @@ export class WttpHandler {
         return aliases[alias] || alias;
     }
 
-    public handleIpfsRequest(url: string, options: RequestInit) : Promise<Response> {
+    public handleIpfsRequest(url: string | URL, options: RequestInit) : Promise<Response> {
         // TODO: implement
+        const urlString = url instanceof URL ? url.href : url;
         return new Promise((resolve, reject) => {
-            reject(new Error("Not implemented"));
+            reject(new Error(`IPFS protocol not implemented for URL: ${urlString}`));
         });
     }
 }
