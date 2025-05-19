@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
-import Web3Site from "./src/interfaces/contracts/Web3Site.json";
-import WttpGateway from "./src/interfaces/contracts/WTTPGatewayV3.json";
+import Web3Site from "./src/interfaces/contracts/Web3Site.json" with { type: "json" };
+import WttpGateway from "./src/interfaces/contracts/WTTPGatewayV3.json" with { type: "json" };
 
 export const WttpGatewayAbi = WttpGateway.abi;
 export const Web3SiteAbi = Web3Site.abi;
