@@ -16,10 +16,7 @@ export type WttpHandlerConfig = {
 };
 
 export type WttpUrl = {
-    protocol: string;
     network: WttpNetworkConfig;
-    host: string;
-    path: string;
     url: URL;
 };
 
@@ -46,17 +43,15 @@ export class WttpHandler {
     ) : Promise<Response> {
         // Convert to string if URL object
         const urlString = url instanceof URL ? url.href : url;
+        url = new URL(urlString);
         
-        if (urlString.startsWith("http")) {
-            return fetch(urlString, options);
-        } else if (urlString.startsWith("wttp://")) {
-            if (!options.signer) {
-                options.signer = this.signer || ethers.Wallet.createRandom(); 
-                // gets the handler's signer or creates a new one if staticSigner is false
-            }
-            return this.handleWttpRequest(urlString, options);
-        } else if (urlString.startsWith("ipfs://")) {
-            return this.handleIpfsRequest(urlString, options);
+        if (url.protocol.startsWith("http")) {
+            return fetch(url, options);
+        } else if (url.protocol.startsWith("wttp")) {
+            options.signer = this.signer || ethers.Wallet.createRandom(); 
+            return this.handleWttpRequest(url, options);
+        } else if (url.protocol.startsWith("ipfs")) {
+            return this.handleIpfsRequest(url, options);
         } else {
             return this.error505Response();
         }
@@ -66,27 +61,27 @@ export class WttpHandler {
         return new Response("Not Implemented", { status: 505 });
     }
 
-    public async handleWttpRequest(url: string | URL, options: WttpRequestInit) : Promise<Response> {
-        // Convert to string if URL object
-        const urlString = url instanceof URL ? url.href : url;
+    public async handleWttpRequest(url: URL, options: WttpRequestInit) : Promise<Response> {
+        const PROTOCOL_VERSION = "WTTP/3.0";
         
         let wttpUrl: WttpUrl;
         try {
-            wttpUrl = await this.parseWttpUrl(urlString);
+            wttpUrl = await this.validateWttpUrl(url);
         } catch (error) {
-            throw `Parse Error: ${urlString}: ${error}`;
+            throw `URL Error: ${url.href}: ${error}`;
         }
+
         const provider = new ethers.JsonRpcProvider(wttpUrl.network.rpcList[0], wttpUrl.network.chainId);
         
         const web3Site = new ethers.Contract(
-            wttpUrl.host, 
+            wttpUrl.url.hostname, 
             Web3SiteAbi, 
             provider
         ).connect(options.signer || null) as Web3Site;
 
         const failHeadRequest: HEADRequestStruct = {
             requestLine: {
-                protocol: "WTTP/3.0",
+                protocol: PROTOCOL_VERSION,
                 path: "404", // should return 404 since the path doesn't start with a /
                 method: 0
             },
@@ -102,7 +97,7 @@ export class WttpHandler {
                 throw `Site responded with ${statusCode} instead of 404`;
             }
         } catch(error) {
-            throw `Invalid WTTP Host: ${wttpUrl.host} - invalid contract: ${error}`;
+            throw `Invalid WTTP Host: ${wttpUrl.url.hostname} - invalid contract: ${error}`;
         }
 
         const wttpGateway = new ethers.Contract(
@@ -112,7 +107,7 @@ export class WttpHandler {
         ).connect(options.signer || null) as WTTPGateway;
 
         try {
-            const wttpFailResponse = await wttpGateway.HEAD(wttpUrl.host, failHeadRequest);
+            const wttpFailResponse = await wttpGateway.HEAD(wttpUrl.url.hostname, failHeadRequest);
             const statusCode = wttpFailResponse.responseLine.code;
             if (statusCode !== 404n) {
                 throw `Gateway responded with ${statusCode} instead of 404`;
@@ -121,20 +116,17 @@ export class WttpHandler {
             throw `Invalid WTTP Gateway: ${wttpUrl.network.gateway}: ${error}`;
         }
 
-        let wttpResponse: GETResponseStruct | HEADResponseStruct;
-        let response: Response = new Response();
-
         const headRequest: HEADRequestStruct = {
             requestLine: {
-                protocol: "WTTP/3.0",
-                path: wttpUrl.path,
+                protocol: PROTOCOL_VERSION,
+                path: wttpUrl.url.pathname,
                 method: 0
             },
-            ifModifiedSince: 0,
-            ifNoneMatch: "0x0000000000000000000000000000000000000000"
+            ifModifiedSince: options.headers?.["If-Modified-Since"] || 0,
+            ifNoneMatch: options.headers?.["If-None-Match"] || ethers.ZeroHash
         }
 
-        const headResponse: HEADResponseStruct = await wttpGateway.HEAD(wttpUrl.host, headRequest);
+        const headResponse: HEADResponseStruct = await wttpGateway.HEAD(wttpUrl.url.hostname, headRequest);
 
         let statusCode = BigInt(headResponse.responseLine.code);
         statusCode = statusCode === 0n ? 500n : statusCode; // 0n is an error, set to 500n
@@ -183,6 +175,7 @@ export class WttpHandler {
 
         }
 
+        let wttpResponse: GETResponseStruct | HEADResponseStruct;
         if (!options.method || options.method === "GET") {
             const headers = options.headers || {};
             const range = headers["Range"] || undefined;
@@ -215,31 +208,27 @@ export class WttpHandler {
         });
     }
 
-    public async parseWttpUrl(urlString: string): Promise<WttpUrl> {
-        if (!urlString.startsWith("wttp://")) {
-            throw `Invalid Wttp URL: ${urlString}`;
+    public async validateWttpUrl(url: URL): Promise<WttpUrl> {
+        if (!url.protocol.startsWith("wttp")) {
+            throw `Invalid Wttp URL: ${url.protocol} - invalid protocol`;
         }
-
-        // Create a URL object with a temporary http:// prefix to use URL parsing capabilities
-        // We'll replace this with wttp:// later
-        const tempUrl = new URL(urlString.replace("wttp://", "http://"));
-        const protocol = "WTTP/3.0";
         
         // Extract hostname (without port)
-        let host = tempUrl.hostname;
+        let host = url.hostname;
         if (!host) {
-            throw `Invalid Wttp URL: ${urlString} - missing host`;
+            throw `Invalid WTTP URL: ${url} - missing host`;
         }
         
         // Default network
         let network: WttpNetworkConfig = this.wttpConfig.networks[0]; 
         
         // Check if network is specified in the port section
-        if (tempUrl.port) {
+        if (url.port) {
             try {
-                network = this.wttpConfig.networks[this.getNetworkAlias(tempUrl.port)];
+                url.port = this.getNetworkAlias(url.port);
+                network = this.wttpConfig.networks[url.port];
             } catch (error) {
-                throw `Invalid Wttp URL: ${urlString} - invalid network: ${tempUrl.port}: ${error}`;
+                throw `Invalid WTTP URL: ${url.port} - invalid network: ${error}`;
             }
         }
 
@@ -253,25 +242,25 @@ export class WttpHandler {
                     host = resolved;
                 }
             } catch (error) {
-                throw `Failed to resolve ENS name ${host}: ${error}`;
-            }
-        } else {
-            try {
-                // use ethers to validate the host is a valid address/domain
-                ethers.getAddress(host);
-                // doesn't need to be saved (host = ...) because if it is an invalid address, it will throw an error
-            } catch (error) {
-                throw `Invalid Wttp URL: ${urlString} - invalid host: ${host}: ${error}`;
+                throw `Invalid WTTP URL: ${host} - invalid ENS name: ${error}`;
             }
         }
+        
+        try {
+            // use ethers to validate the host is a valid address/domain
+            host = ethers.getAddress(host);
+            ethers.isAddress(host);
+        } catch (error) {
+            throw `Invalid WTTP URL: ${host} - invalid ethers address: ${error}`;
+        }
+
+        // Set the fully resolved and checksummed host
+        url.hostname = host;
 
         // Get the path including query parameters and hash
-        const path = tempUrl.pathname || "/";
+        url.pathname = url.pathname || "/";
         
-        // Create a proper URL object with wttp:// protocol
-        const url = new URL(urlString);
-        
-        return { protocol, network, host, path, url };
+        return { network, url };
     }
 
     private getNetworkAlias(alias: string): string {
