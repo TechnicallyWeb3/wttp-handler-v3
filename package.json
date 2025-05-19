@@ -2,9 +2,10 @@
   "name": "wttp-handler-v3",
   "version": "0.3.0",
   "description": "WTTP handler for typescript/node projects",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha -r ts-node/register test/**/*.test.ts"
   },
   "repository": {
     "type": "git",
@@ -21,7 +22,13 @@
     "url": "https://github.com/TechnicallyWeb3/wttp-handler-v3/issues"
   },
   "homepage": "https://github.com/TechnicallyWeb3/wttp-handler-v3#readme",
-  "dependencies": {
-    "ethers": "^6.14.1"
+  "devDependencies": {
+    "ethers": "^6.14.1",
+    "@types/chai": "^5.2.2",
+    "@types/mocha": "^10.0.10",
+    "chai": "^5.2.0",
+    "mocha": "^11.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   }
 }
