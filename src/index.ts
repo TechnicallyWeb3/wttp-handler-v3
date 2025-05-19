@@ -111,7 +111,7 @@ export class WttpHandler {
                 path: wttpUrl.url.pathname,
                 method: 0
             },
-            ifModifiedSince: options.headers && "If-Modified-Since" in options.headers ? options.headers["If-Modified-Since"] as number : 0,
+            ifModifiedSince: options.headers && "If-Modified-Since" in options.headers ? Number(options.headers["If-Modified-Since"]) : 0,
             ifNoneMatch: options.headers && "If-None-Match" in options.headers ? options.headers["If-None-Match"] as string : ethers.ZeroHash
         }
 
