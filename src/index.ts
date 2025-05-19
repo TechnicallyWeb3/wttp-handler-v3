@@ -111,8 +111,8 @@ export class WttpHandler {
                 path: wttpUrl.url.pathname,
                 method: 0
             },
-            ifModifiedSince: options.headers?.["If-Modified-Since"] || 0,
-            ifNoneMatch: options.headers?.["If-None-Match"] || ethers.ZeroHash
+            ifModifiedSince: options.headers ? (options.headers as Record<string, string>)["If-Modified-Since"] || 0 : 0,
+            ifNoneMatch: options.headers ? (options.headers as Record<string, string>)["If-None-Match"] || ethers.ZeroHash : ethers.ZeroHash
         }
 
         const headResponse: HEADResponseStruct = await wttpProvider.gateway.HEAD(wttpUrl.url.hostname, headRequest);
@@ -166,7 +166,7 @@ export class WttpHandler {
 
         if (!options.method || options.method === "GET") {
             const headers = options.headers || {};
-            const range = headers["Range"] || undefined;
+            const range = (headers as Record<string, string>)["Range"] || undefined;
             let rangeStart: bigint = 0n;
             let rangeEnd: bigint = 0n;
             if (range) {
@@ -421,7 +421,7 @@ export class WttpHandler {
     }
 
     private getNetworkAlias(alias: string): string {
-        const aliases = {
+        const aliases: Record<string, string> = {
             "leth": "localhost",
             "31337": "localhost",
             "seth": "sepolia",
