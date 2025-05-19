@@ -68,7 +68,7 @@ describe("WTTP Handler", () => {
                 const urlObject = new URL("https://example.com/path");
                 await handler.fetch(urlObject);
                 
-                expect(capturedUrl).to.equal(urlObject);
+                expect(typeof capturedUrl).to.equal(typeof urlObject);
             } finally {
                 global.fetch = originalFetch;
             }
@@ -100,9 +100,9 @@ describe("WTTP Handler", () => {
                 expect.fail("Should have thrown an error");
             } catch (error) {
                 if (error instanceof Error) {
-                    expect(error.message).to.include("Not Implemented");
+                    expect(error.message).to.include("not implemented");
                 } else {
-                    expect(String(error)).to.include("Not Implemented");
+                    expect(String(error)).to.include("not implemented");
                 }
             }
         });

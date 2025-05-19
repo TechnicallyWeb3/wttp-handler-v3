@@ -12,6 +12,19 @@ describe("WTTP URL Validation", () => {
         });
     });
 
+    describe("URL type validation", () => {
+        it("should convert a basic WTTP URL with an Ethereum address to a URL object", async () => {
+            const url = new URL("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570:1/index.html");
+            
+            expect(url.href).to.equal("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570:1/index.html");
+            expect(url.protocol).to.equal("wttp:");
+            expect(url.hostname).to.equal("0x36C02dA8a0983159322a80FFE9F24b1acfF8B570");
+            expect(url.port).to.equal("1");
+            expect(url.pathname).to.equal("/index.html");
+            expect(new URL("./resource.html", url).href).to.equal("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570:1/resource.html");
+        });
+    });
+
     describe("validateWttpUrl", () => {
         it("should validate a basic WTTP URL with an Ethereum address", async () => {
             const address = "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570";
@@ -141,9 +154,9 @@ describe("WTTP URL Validation", () => {
             const address = "0x36c02da8a0983159322a80ffe9f24b1acff8b570"; // lowercase
             const checksumAddress = "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570"; // checksum
             const url = new URL(`wttp://${address}/index.html`);
-            
+            console.log(url);
             const result = await handler.validateWttpUrl(url);
-            
+            console.log(result);
             // Check that the URL href is updated with the checksum address
             expect(result.url.href).to.equal(`wttp://${checksumAddress}/index.html`);
         });

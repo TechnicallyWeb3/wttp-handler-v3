@@ -20,7 +20,7 @@ describe("WTTP Redirect Handling", () => {
             
             const resolvedUrl = new URL(relativeUrl, baseUrl);
             
-            expect(resolvedUrl.href).to.equal("wttp://0x36c02da8a0983159322a80ffe9f24b1acff8b570/path/to/resource.html");
+            expect(resolvedUrl.href).to.equal("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570/path/to/resource.html");
         });
 
         it("should correctly resolve a parent directory relative path", () => {
@@ -29,7 +29,7 @@ describe("WTTP Redirect Handling", () => {
             
             const resolvedUrl = new URL(relativeUrl, baseUrl);
             
-            expect(resolvedUrl.href).to.equal("wttp://0x36c02da8a0983159322a80ffe9f24b1acff8b570/path/resource.html");
+            expect(resolvedUrl.href).to.equal("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570/path/resource.html");
         });
 
         it("should correctly resolve a root-relative path", () => {
@@ -38,7 +38,7 @@ describe("WTTP Redirect Handling", () => {
             
             const resolvedUrl = new URL(relativeUrl, baseUrl);
             
-            expect(resolvedUrl.href).to.equal("wttp://0x36c02da8a0983159322a80ffe9f24b1acff8b570/resource.html");
+            expect(resolvedUrl.href).to.equal("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570/resource.html");
         });
 
         it("should correctly resolve a relative path with query parameters", () => {
@@ -47,7 +47,7 @@ describe("WTTP Redirect Handling", () => {
             
             const resolvedUrl = new URL(relativeUrl, baseUrl);
             
-            expect(resolvedUrl.href).to.equal("wttp://0x36c02da8a0983159322a80ffe9f24b1acff8b570/path/to/resource.html?param=value");
+            expect(resolvedUrl.href).to.equal("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570/path/to/resource.html?param=value");
         });
 
         it("should correctly resolve a relative path with hash", () => {
@@ -56,7 +56,7 @@ describe("WTTP Redirect Handling", () => {
             
             const resolvedUrl = new URL(relativeUrl, baseUrl);
             
-            expect(resolvedUrl.href).to.equal("wttp://0x36c02da8a0983159322a80ffe9f24b1acff8b570/path/to/resource.html#section");
+            expect(resolvedUrl.href).to.equal("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570/path/to/resource.html#section");
         });
     });
 
@@ -90,7 +90,7 @@ describe("WTTP Redirect Handling", () => {
             
             const resolvedUrl = new URL(defaultRedirect, baseUrl);
             
-            expect(resolvedUrl.href).to.equal("wttp://0x36c02da8a0983159322a80ffe9f24b1acff8b570/directory/index.html");
+            expect(resolvedUrl.href).to.equal("wttp://0x36C02dA8a0983159322a80FFE9F24b1acfF8B570/directory/index.html");
         });
     });
 });
