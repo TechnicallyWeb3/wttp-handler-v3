@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "ethers";
-import { WttpHandler, WttpUrl } from "../src/index.js";
+import { WttpHandler, WttpUrl } from "../src/index.ts.old";
 import { config } from "../wttp.config.js";
 
 describe("WTTP Provider Handling", () => {

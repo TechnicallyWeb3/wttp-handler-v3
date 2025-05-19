@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "ethers";
-import { WttpHandler } from "../src/index.js";
+import { WttpHandler } from "../src/index.ts.old";
 import { config } from "../wttp.config.js";
 import { HEADResponseStruct, RedirectStruct } from "../src/interfaces/contracts/WTTPGateway.js";
 

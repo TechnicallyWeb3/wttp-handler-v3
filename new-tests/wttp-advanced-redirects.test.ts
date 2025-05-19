@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { WttpHandler } from '../src/index.js';
+import { WttpHandler } from '../src/index.ts.old';
 import { URL } from 'url';
 
 /**

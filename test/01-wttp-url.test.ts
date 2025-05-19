@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "ethers";
-import { WttpHandler, WttpUrl } from "../src/index.js";
+import { WttpHandler, WttpUrl } from "../src/index.ts.old";
 import { config } from "../wttp.config.js";
 
 describe("WTTP URL Validation", () => {
@@ -193,10 +193,11 @@ describe("WTTP URL Validation", () => {
         // For now, we'll just test the error handling
         
         it("should throw an error for unresolvable ENS names", async () => {
-            const url = new URL("wttp://example.eth/index.html");
+
+            const badUrl = new URL("wttp://example.eth/index.html");
             
             try {
-                await handler.validateWttpUrl(url);
+                await handler.validateWttpUrl(badUrl);
                 expect.fail("Should have thrown an error");
             } catch (error) {
                 // The error message might vary depending on the implementation
