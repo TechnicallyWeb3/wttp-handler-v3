@@ -6,8 +6,8 @@ import {
     Web3SiteAbi 
 } from "../wttp.config";
 import { ethers } from "ethers";
-import { HEADRequestStruct, HEADResponseStruct, Web3Site } from "./interfaces/contracts/Web3Site.js";
-import { GETRequestStruct, GETResponseStruct, WTTPGateway } from "./interfaces/contracts/WTTPGateway.js";
+import { HEADRequestStruct, HEADResponseStruct, Web3Site } from "./interfaces/contracts/Web3Site";
+import { GETRequestStruct, GETResponseStruct, WTTPGateway } from "./interfaces/contracts/WTTPGateway";
 
 export type WttpHandlerConfig = {
     wttpConfig: WttpConfig;
