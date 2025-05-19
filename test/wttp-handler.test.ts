@@ -86,7 +86,7 @@ describe("WTTP Handler", () => {
                 await handler.handleWttpRequest(url, {});
                 expect.fail("Should have thrown an error");
             } catch (error) {
-                expect(error).to.include("URL Error");
+                expect(String(error)).to.include("URL Error");
             }
         });
     });
@@ -99,7 +99,11 @@ describe("WTTP Handler", () => {
                 await handler.handleIpfsRequest(url, {});
                 expect.fail("Should have thrown an error");
             } catch (error) {
-                expect(error.message).to.include("Not Implemented");
+                if (error instanceof Error) {
+                    expect(error.message).to.include("Not Implemented");
+                } else {
+                    expect(String(error)).to.include("Not Implemented");
+                }
             }
         });
     });

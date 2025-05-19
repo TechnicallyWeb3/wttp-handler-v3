@@ -32,8 +32,8 @@ describe("WTTP URL Validation", () => {
                 await handler.validateWttpUrl(url);
                 expect.fail("Should have thrown an error");
             } catch (error) {
-                expect(error).to.include("Invalid Wttp URL");
-                expect(error).to.include("invalid protocol");
+                expect(String(error)).to.include("Invalid Wttp URL");
+                expect(String(error)).to.include("invalid protocol");
             }
         });
 
@@ -44,8 +44,8 @@ describe("WTTP URL Validation", () => {
                 await handler.validateWttpUrl(url);
                 expect.fail("Should have thrown an error");
             } catch (error) {
-                expect(error).to.include("Invalid WTTP URL");
-                expect(error).to.include("missing host");
+                expect(String(error)).to.include("Invalid WTTP URL");
+                expect(String(error)).to.include("missing host");
             }
         });
 
@@ -56,8 +56,8 @@ describe("WTTP URL Validation", () => {
                 await handler.validateWttpUrl(url);
                 expect.fail("Should have thrown an error");
             } catch (error) {
-                expect(error).to.include("Invalid WTTP URL");
-                expect(error).to.include("invalid ethers address");
+                expect(String(error)).to.include("Invalid WTTP URL");
+                expect(String(error)).to.include("invalid ethers address");
             }
         });
 
@@ -200,7 +200,7 @@ describe("WTTP URL Validation", () => {
                 await handler.validateWttpUrl(url);
                 expect.fail("Should have thrown an error");
             } catch (error) {
-                expect(error).to.include("Invalid WTTP URL");
+                expect(String(error)).to.include("Invalid WTTP URL");
             }
         });
     });
