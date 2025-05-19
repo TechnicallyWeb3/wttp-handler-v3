@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { hello } from "../src/hello.js";
+import { hello } from "../src/hello";
 
 describe("hello", () => {
     it("should return 'Hello, world!'", () => {

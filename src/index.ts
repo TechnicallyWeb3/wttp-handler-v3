@@ -4,10 +4,10 @@ import {
     WttpNetworkConfig, 
     WttpGatewayAbi, 
     Web3SiteAbi 
-} from "../wttp.config.ts";
+} from "../wttp.config";
 import { ethers } from "ethers";
-import { HEADRequestStruct, HEADResponseStruct, Web3Site } from "./interfaces/contracts/Web3Site.ts";
-import { GETRequestStruct, GETResponseStruct, WTTPGateway } from "./interfaces/contracts/WTTPGateway.ts";
+import { HEADRequestStruct, HEADResponseStruct, Web3Site } from "./interfaces/contracts/Web3Site";
+import { GETRequestStruct, GETResponseStruct, WTTPGateway } from "./interfaces/contracts/WTTPGateway";
 
 export type WttpHandlerConfig = {
     wttpConfig: WttpConfig;
