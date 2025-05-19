@@ -443,7 +443,8 @@ export class WttpHandler {
         
         // If this is a GET response, it will have data
         if (isGetResponse) {
-            body = (response as GETResponseStruct).data as string;
+            const getResponse = response as GETResponseStruct;
+            body = getResponse.data?.toString() || null;
         }
         
         // Create and return the Response object
