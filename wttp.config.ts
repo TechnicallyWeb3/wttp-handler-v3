@@ -22,7 +22,7 @@ export const config: WttpConfig = {
         localhost: {
             rpcList: ["http://localhost:8545"],
             chainId: 31337,
-            gateway: "0x0000000000000000000000000000000000000000",
+            gateway: "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570",
         }
     },
 };
