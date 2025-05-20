@@ -1,18 +1,45 @@
-import wttpConfig from "../../wttp.config";
 import {  
-    WttpGatewayAbi, 
-    Web3SiteAbi 
+    WttpGatewayFactory, 
+    Web3SiteFactory,
+    config
 } from "../../wttp.config";
-import { ethers, JsonRpcApiProvider } from "ethers";
+import { ethers } from "ethers";
 
-import { HEADRequestStruct, HEADResponseStruct, Web3Site } from "../interfaces/contracts/Web3Site";
-import { GETRequestStruct, GETResponseStruct, WTTPGateway } from "../interfaces/contracts/WTTPGateway";
-import { WttpConfig, WttpProvider, WttpUrl, GETOptions, HEADOptions, WttpNetworkConfig } from "../interfaces/WTTPTypes";
+import { 
+    HEADRequestStruct, 
+    HEADResponseStruct, 
+    Web3Site 
+} from "../interfaces/contracts/Web3Site";
+import { 
+    GETRequestStruct, 
+    GETResponseStruct, 
+    WTTPGatewayV3 
+} from "../interfaces/contracts/WTTPGatewayV3";
+import { 
+    WttpProvider, 
+    WttpUrl, 
+    GETOptions, 
+    HEADOptions, 
+    WttpNetworkConfig 
+} from "../interfaces/WTTPTypes";
+import { Web3Site__factory } from "../interfaces/contracts/Web3Site__factory";
+import { WTTPGatewayV3__factory } from "../interfaces/contracts/WTTPGatewayV3__factory";
 
 export const WTTP_VERSION = "WTTP/3.0";
 
-export async function resolveEnsName(name: string, wttpConfig: WttpConfig): Promise<string> {
-    const rpcUrl = wttpConfig.networks.ethereum.rpcList[0];
+export function formatEthereumAddress(address: string | ethers.Addressable): string {
+    try {
+        // use ethers to validate the host is a valid address
+        const checksumAddress = ethers.getAddress(String(address));
+        // ethers.isAddress(checksumAddress); // try/catch implemented, so this is not needed
+        return checksumAddress;
+    } catch (error) {
+        throw `Invalid Ethereum address: ${address} - ${error}`;
+    }
+}
+
+export async function resolveEnsName(name: string): Promise<string> {
+    const rpcUrl = config.networks.mainnet.rpcList[0];
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     try {
         const resolved = await provider.resolveName(name);
@@ -26,24 +53,30 @@ export async function resolveEnsName(name: string, wttpConfig: WttpConfig): Prom
     }
 }
 
-export async function formatEthereumAddress(address: string | ethers.Addressable): Promise<string> {
-    try {
-        // use ethers to validate the host is a valid address/domain
-        const checksumAddress = ethers.getAddress(String(address));
-        ethers.isAddress(checksumAddress);
-        return checksumAddress;
-    } catch (error) {
-        throw `Invalid Ethereum address: ${address} - ${error}`;
-    }
-}
-
-export async function getHostAddress(url: string | URL): Promise<string> {
+export async function getWttpUrl(url: URL | string): Promise<WttpUrl> {
     url = new URL(url);
-    const host = url.hostname;
-    if (host.endsWith('.eth')) {
-        return await resolveEnsName(host, wttpConfig);
+    if (!url.protocol.startsWith('wttp')) {
+        // console.log(`Protocol not supported: ${url.protocol}`);
+        throw `Invalid WTTP URL: ${url.protocol} - URL must start with wttp://`;
     }
-    return await formatEthereumAddress(host);
+
+    const networkName = url.port || String(config.networks[Object.keys(config.networks)[0]].chainId);
+    const network = getNetworkAlias(networkName);
+    url.port = networkName;
+
+    try {
+        const hostAddress = await getHostAddress(url);
+        url.host = hostAddress;
+        const gatewayAddress = getGatewayAddress(url);
+        return {
+            url,
+            network,
+            gateway: gatewayAddress,
+            host: hostAddress
+        }
+    } catch (error) {
+        throw `Bad Host or Gateway: ${url} - ${error}`;
+    }
 }
 
 export function getNetworkAlias(alias: string): string {
@@ -59,54 +92,49 @@ export function getNetworkAlias(alias: string): string {
     return aliases[alias] || alias;
 }
 
-// modifies the url in the return, when returning the response to the client, use the original url
-export async function getWttpUrl(url: URL | string, signer: ethers.Signer): Promise<WttpUrl> {
+export async function getHostAddress(url: string | URL): Promise<string> {
     url = new URL(url);
-    const address = await getHostAddress(url);
-    // Create new URL with checksummed address as hostname while preserving other parts
-    url = new URL(url.href.replace(url.hostname, address));
-    let network: WttpNetworkConfig;
+    const host = url.hostname;
+    if (host.endsWith('.eth')) {
+        return await resolveEnsName(host);
+    }
+    return formatEthereumAddress(host);
+}
 
+export function getGatewayAddress(url: URL | string): string {
+    url = new URL(url);
+    const networkAlias = getNetworkAlias(url.port);
+    const networkKeys = Object.keys(config.networks);
+    const network = networkAlias ? config.networks[networkAlias] : config.networks[networkKeys[0]];
+    return formatEthereumAddress(network.gateway);
+}
+
+// modifies the url in the return, when returning the response to the client, use the original url
+export async function getWttpProvider(
+    wttpUrl: WttpUrl, 
+    signer?: ethers.Signer
+): Promise<WttpProvider> {    
+    let network: WttpNetworkConfig;
+    let provider: ethers.JsonRpcProvider;
     try {
-        if (url.port) {
-            try {
-                const networkName = getNetworkAlias(url.port);
-                network = wttpConfig.networks[networkName];
-            } catch (error) {
-                throw `Network alias not found: ${url.port} - ${error}`;
-            }
-        } else {
-            network = wttpConfig.networks[0];
-        }
-        if (network.rpcList.length === 0) {
-            throw `No RPC URL for network: ${network.chainId}`;
-        }
+        network = config.networks[wttpUrl.network];
+        provider = new ethers.JsonRpcProvider(network.rpcList[0], network.chainId);
+        // console.log(provider);
     } catch (error) {
-        throw `Invalid network: ${error}`;
+        throw `Invalid network ${wttpUrl.network} - could not mount provider: ${error}`;
     }
 
     try {
-        const provider = new ethers.JsonRpcProvider(network.rpcList[0], network.chainId);
-        
-        const site = new ethers.Contract(
-            address, 
-            Web3SiteAbi, 
-            provider
-        ).connect(signer || null) as Web3Site;
+        // not technically needed, but good to have, in future needed for write methods
+        const host = await loadWttpHost(wttpUrl.host, provider, signer);
+        const gateway = await loadWttpGateway(wttpUrl, provider, signer);
 
-        const gateway = new ethers.Contract(
-            network.gateway, 
-            WttpGatewayAbi, 
-            provider
-        ).connect(signer || null) as WTTPGateway;
-
-        return { url, gateway, site };
+        return { gateway, host };
     } catch (error) {
         throw `
-            Could not set WTTP contract: \n
-            Network: ${network.chainId} - ${network.rpcList[0]}; \n 
-            WTTP Gateway: ${network.gateway}; \n
-            Web3Site: ${address}; - ${error}
+            Invalid WTTP contracts: \n
+            WTTP Gateway: ${wttpUrl.gateway}; \n
+            Web3Site: ${wttpUrl.host}; - ${error}
         `;
     }
 }
@@ -121,61 +149,70 @@ const failHeadRequest: HEADRequestStruct = {
     ifNoneMatch: ethers.ZeroHash,
 }
 
-export async function checkWttpHost(site: Web3Site): Promise<boolean> {
+export async function loadWttpHost(
+    address: string | ethers.Addressable, 
+    provider: ethers.JsonRpcProvider, 
+    signer?: ethers.Signer
+): Promise<Web3Site> {
     try {
-        const siteFailResponse = await site.HEAD(failHeadRequest);
-        // if the HEAD request returns a 404, then the host is not a valid Web3Site contract
-        const statusCode = siteFailResponse.responseLine.code;
-        if (statusCode !== 404n) {
-            throw `Site responded with ${statusCode} instead of 404`;
-        }
+        signer = signer || ethers.Wallet.createRandom();
+        let siteFactory = new Web3Site__factory(signer.connect(provider));
+        let site = siteFactory.attach(address) as Web3Site;
+        await site.HEAD(failHeadRequest);
+        return site;
     } catch(error) {
-        throw `Invalid WTTP Host: ${site.target} - invalid contract: ${error}`;
+        throw `Invalid WTTP Host: ${address} - invalid contract: ${error}`;
+        // should throw a 501 Not Implemented error upstream
     }
-    return true;
 }
 
-export async function checkWttpGateway(gateway: WTTPGateway): Promise<boolean> {
+export async function checkWttpHost(host: Web3Site): Promise<boolean> {
+    // const result = await host.HEAD(failHeadRequest);
+    // console.log(result);
     try {
-        const wttpFailResponse = await gateway.HEAD(gateway.target, failHeadRequest);
-        const statusCode = wttpFailResponse.responseLine.code;
-        if (statusCode !== 404n) {
-            throw `Gateway responded with ${statusCode} instead of 404`;
-        }
+        await host.HEAD(failHeadRequest); // a successful call means the host is valid
+        return true;
     } catch(error) {
-        throw `Invalid WTTP Gateway: ${gateway.target} - invalid contract: ${error}`;
+        return false;
+        // should throw a 501 Not Implemented error upstream
     }
-    return true;
+}
+
+export async function loadWttpGateway(wttpUrl: WttpUrl, provider: ethers.JsonRpcProvider, signer?: ethers.Signer): Promise<WTTPGatewayV3> {
+    try {
+        signer = signer || ethers.Wallet.createRandom();
+        let gatewayFactory = new WTTPGatewayV3__factory(signer.connect(provider));
+        let gateway = gatewayFactory.attach(wttpUrl.gateway) as WTTPGatewayV3;
+        await gateway.HEAD(wttpUrl.host, failHeadRequest);
+        return gateway;
+    } catch(error) {
+        throw `Invalid WTTP Gateway: ${wttpUrl.gateway} - invalid contract: ${error}`;
+        // should throw a 502 Bad Gateway error upstream
+    }
+}
+
+export async function checkWttpGateway(gateway: WTTPGatewayV3, host: string | ethers.Addressable): Promise<boolean> {
+    try {
+        await gateway.HEAD(host, failHeadRequest); // a successful call means the gateway is valid
+        return true;
+    } catch(error) {
+        return false;
+        // should throw a 502 Bad Gateway error upstream
+    }
 }
 
 export async function wttpGet(url: URL | string, options?: GETOptions): Promise<GETResponseStruct> {
     url = new URL(url);
-    const wttpUrl = await getWttpUrl(url, options?.signer || ethers.Wallet.createRandom());
-
-    try {
-        if (!wttpUrl.site) {
-            throw `Site is undefined: ${wttpUrl.url.hostname}`;
-        }
-        await checkWttpHost(wttpUrl.site);
-    } catch(error) {
-        throw `Invalid WTTP Host: ${error}`;
-    }
-
-    try {
-        if (!wttpUrl.gateway) {
-            throw `Gateway is undefined: ${wttpUrl.url.hostname}`;
-        }
-        await checkWttpGateway(wttpUrl.gateway);
-    } catch(error) {
-        throw `Invalid WTTP Gateway: ${error}`;
-    }
+    
+    let wttpUrl: WttpUrl = await getWttpUrl(url);
+    let wttpProvider: WttpProvider = await getWttpProvider(wttpUrl, options?.signer);
 
     const getReq: GETRequestStruct = {
         head: {
             requestLine: {
                 protocol: WTTP_VERSION,
                 path: url.pathname,
-                method: 0
+                method: 1 // GET bitmask
             },
             ifModifiedSince: options?.ifModifiedSince || 0n,
             ifNoneMatch: options?.ifNoneMatch || ethers.ZeroHash,
@@ -183,33 +220,73 @@ export async function wttpGet(url: URL | string, options?: GETOptions): Promise<
         rangeBytes: options?.range || { start: 0, end: 0 },
     }
     try {
-        const response = await wttpUrl.gateway.GET(wttpUrl.url.hostname, getReq);
+        const response = await wttpProvider.gateway.GET(wttpUrl.host, getReq);
         return response;
     } catch(error) {
-        throw `Request failed: ${wttpUrl.url.hostname} - ${error}`;
+        let statusCode: bigint = 500n;
+        if (wttpProvider.gateway && !checkWttpGateway(wttpProvider.gateway, wttpUrl.host)) {
+            statusCode = 502n;
+            if (wttpProvider.host && !checkWttpHost(wttpProvider.host)) {
+                statusCode = 501n;
+            }
+        }
+
+        // return an empty 500, 501, or 502 error
+        return wttpErrorResponse(statusCode);
+    }
+}
+
+export function wttpErrorResponse(statusCode: bigint, wttpUrl?: WttpUrl): GETResponseStruct {
+    return {
+        head: {
+            responseLine: {
+                protocol: WTTP_VERSION,
+                code: statusCode
+            },
+            headerInfo: {
+                methods: 0n,
+                cache: { 
+                    maxAge: 0n, 
+                    noStore: false, 
+                    noCache: false, 
+                    immutableFlag: false, 
+                    publicFlag: false 
+                },
+                redirect: { code: 0n, location: '' },
+                resourceAdmin: ethers.ZeroAddress
+            },
+            metadata: {
+                mimeType: '',
+                charset: '',
+                encoding: '',
+                language: '',
+                size: 0n,
+                version: 0n,
+                lastModified: 0n,
+                header: ethers.ZeroHash
+            },
+            etag: ethers.ZeroHash
+        },
+        bytesRange: { start:0, end:0 },
+        data: wttpUrl ? `Gateway: ${wttpUrl.gateway} - Host: ${wttpUrl.host}` : ''
     }
 }
 
 export async function wttpHead(url: URL | string, options?: HEADOptions): Promise<HEADResponseStruct> {
     url = new URL(url);
-    const wttpUrl = await getWttpUrl(url, options?.signer || ethers.Wallet.createRandom());
 
+    let wttpUrl: WttpUrl;
     try {
-        if (!wttpUrl.site) {
-            throw `Site is undefined: ${wttpUrl.url.hostname}`;
-        }
-        await checkWttpHost(wttpUrl.site);
+        wttpUrl = await getWttpUrl(url);
     } catch(error) {
-        throw `Invalid WTTP Host: ${error}`;
+        throw `Invalid WTTP URL: ${error}`;
     }
 
+    let wttpProvider: WttpProvider;
     try {
-        if (!wttpUrl.gateway) {
-            throw `Gateway is undefined: ${wttpUrl.url.hostname}`;
-        }
-        await checkWttpGateway(wttpUrl.gateway);
+        wttpProvider = await getWttpProvider(wttpUrl, options?.signer);
     } catch(error) {
-        throw `Invalid WTTP Gateway: ${error}`;
+        throw `Failed to mount WTTP Provider: ${error}`;
     }
     
     const headReq: HEADRequestStruct = {
@@ -223,9 +300,18 @@ export async function wttpHead(url: URL | string, options?: HEADOptions): Promis
     }
 
     try {
-        const response = await wttpUrl.gateway.HEAD(wttpUrl.url.hostname, headReq);
+        const response = await wttpProvider.gateway.HEAD(wttpUrl.host, headReq);
         return response;
     } catch(error) {
-        throw `Request failed: ${wttpUrl.url.hostname} - ${error}`;
+        let statusCode: bigint = 500n;
+        if (wttpProvider.gateway && !checkWttpGateway(wttpProvider.gateway, wttpUrl.host)) {
+            statusCode = 502n;
+            if (wttpProvider.host && !checkWttpHost(wttpProvider.host)) {
+                statusCode = 501n;
+            }
+        }
+
+        // return an empty 500, 501, or 502 error
+        return wttpErrorResponse(statusCode, wttpUrl).head;
     }
 }

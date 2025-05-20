@@ -66,56 +66,33 @@ export type GETRequestStructOutput = [
   rangeBytes: RangeStructOutput
 ] & { head: HEADRequestStructOutput; rangeBytes: RangeStructOutput };
 
-export type ResponseLineStruct = {
-  protocol: string;
-  code: BigNumberish;
-  method: BigNumberish;
-};
+export type ResponseLineStruct = { protocol: string; code: BigNumberish };
 
-export type ResponseLineStructOutput = [
-  protocol: string,
-  code: bigint,
-  method: bigint
-] & { protocol: string; code: bigint; method: bigint };
+export type ResponseLineStructOutput = [protocol: string, code: bigint] & {
+  protocol: string;
+  code: bigint;
+};
 
 export type CacheControlStruct = {
   maxAge: BigNumberish;
-  sMaxage: BigNumberish;
   noStore: boolean;
   noCache: boolean;
   immutableFlag: boolean;
   publicFlag: boolean;
-  mustRevalidate: boolean;
-  proxyRevalidate: boolean;
-  mustUnderstand: boolean;
-  staleWhileRevalidate: BigNumberish;
-  staleIfError: BigNumberish;
 };
 
 export type CacheControlStructOutput = [
   maxAge: bigint,
-  sMaxage: bigint,
   noStore: boolean,
   noCache: boolean,
   immutableFlag: boolean,
-  publicFlag: boolean,
-  mustRevalidate: boolean,
-  proxyRevalidate: boolean,
-  mustUnderstand: boolean,
-  staleWhileRevalidate: bigint,
-  staleIfError: bigint
+  publicFlag: boolean
 ] & {
   maxAge: bigint;
-  sMaxage: bigint;
   noStore: boolean;
   noCache: boolean;
   immutableFlag: boolean;
   publicFlag: boolean;
-  mustRevalidate: boolean;
-  proxyRevalidate: boolean;
-  mustUnderstand: boolean;
-  staleWhileRevalidate: bigint;
-  staleIfError: bigint;
 };
 
 export type RedirectStruct = { code: BigNumberish; location: string };
@@ -149,7 +126,6 @@ export type ResourceMetadataStruct = {
   charset: BytesLike;
   encoding: BytesLike;
   language: BytesLike;
-  location: BytesLike;
   size: BigNumberish;
   version: BigNumberish;
   lastModified: BigNumberish;
@@ -161,7 +137,6 @@ export type ResourceMetadataStructOutput = [
   charset: string,
   encoding: string,
   language: string,
-  location: string,
   size: bigint,
   version: bigint,
   lastModified: bigint,
@@ -171,7 +146,6 @@ export type ResourceMetadataStructOutput = [
   charset: string;
   encoding: string;
   language: string;
-  location: string;
   size: bigint;
   version: bigint;
   lastModified: bigint;
@@ -243,7 +217,7 @@ export type OPTIONSResponseStructOutput = [
   allow: bigint
 ] & { responseLine: ResponseLineStructOutput; allow: bigint };
 
-export interface WTTPGatewayInterface extends Interface {
+export interface WTTPGatewayV3Interface extends Interface {
   getFunction(
     nameOrSignature: "GET" | "HEAD" | "LOCATE" | "OPTIONS"
   ): FunctionFragment;
@@ -271,11 +245,11 @@ export interface WTTPGatewayInterface extends Interface {
   decodeFunctionResult(functionFragment: "OPTIONS", data: BytesLike): Result;
 }
 
-export interface WTTPGateway extends BaseContract {
-  connect(runner?: ContractRunner | null): WTTPGateway;
+export interface WTTPGatewayV3 extends BaseContract {
+  connect(runner?: ContractRunner | null): WTTPGatewayV3;
   waitForDeployment(): Promise<this>;
 
-  interface: WTTPGatewayInterface;
+  interface: WTTPGatewayV3Interface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,

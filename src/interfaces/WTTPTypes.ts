@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 
 import { Web3Site } from "./contracts/Web3Site";
-import { RangeStruct, WTTPGateway } from "./contracts/WTTPGateway";
+import { RangeStruct, WTTPGatewayV3 } from "./contracts/WTTPGatewayV3";
 
 
 export type WttpNetworkConfig = {
@@ -24,15 +24,14 @@ export type WttpHandlerConfig = {
 
 export type WttpUrl = {
     url: URL;
-    gateway: WTTPGateway;
-    site?: Web3Site;
+    network: string;
+    gateway: string;
+    host: string;
 };
 
 export type WttpProvider = {
-    provider: ethers.JsonRpcProvider;
-    signer: ethers.Signer;
-    gateway: WTTPGateway;
-    site: Web3Site;
+    gateway: WTTPGatewayV3;
+    host?: Web3Site;
 };
 
 export type HEADOptions = {
