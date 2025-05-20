@@ -179,6 +179,7 @@ export function getGatewayAddress(url: URL | string): string {
  * @returns Promise resolving to a WttpProvider with connected contract instances
  * @throws Error if the provider cannot be created or contracts cannot be loaded
  */
+
 export async function getWttpProvider(
     wttpUrl: WttpUrl, 
     signer?: ethers.Signer
@@ -231,6 +232,7 @@ const failHeadRequest: HEADRequestStruct = {
  * @returns Promise resolving to a connected Web3Site contract instance
  * @throws Error if the contract is invalid or cannot be loaded
  */
+
 export async function loadWttpHost(
     address: string | ethers.Addressable, 
     provider: ethers.JsonRpcProvider, 
@@ -272,7 +274,7 @@ export async function checkWttpHost(host: Web3Site): Promise<boolean> {
  * @param wttpUrl - The WTTP URL object containing gateway and host information
  * @param provider - The JSON-RPC provider to use for contract interactions
  * @param signer - Optional signer to use for contract interactions
- * @returns Promise resolving to a connected WTTPGatewayV3 contract instance
+ * @returns Promise resolving to a WTTPGatewayV3 contract instance
  * @throws Error if the contract is invalid or cannot be loaded
  */
 export async function loadWttpGateway(wttpUrl: WttpUrl, provider: ethers.JsonRpcProvider, signer?: ethers.Signer): Promise<WTTPGatewayV3> {
@@ -292,7 +294,7 @@ export async function loadWttpGateway(wttpUrl: WttpUrl, provider: ethers.JsonRpc
  * Checks if a WTTPGatewayV3 contract instance is valid and implements the required interface
  * 
  * @param gateway - The WTTPGatewayV3 contract instance to check
- * @param host - The host address to use for the test request
+ * @param host - The address of the Web3Site contract to use for validation
  * @returns Promise resolving to true if the contract is valid, false otherwise
  */
 export async function checkWttpGateway(gateway: WTTPGatewayV3, host: string | ethers.Addressable): Promise<boolean> {
@@ -356,10 +358,10 @@ export async function wttpGet(url: URL | string, options?: GETOptions): Promise<
 }
 
 /**
- * Creates an error response for WTTP requests
+ * Creates a WTTP error response with the specified status code
  * 
- * @param statusCode - The HTTP status code to include in the response
- * @param wttpUrl - Optional WTTP URL to include in the error message
+ * @param statusCode - The HTTP status code to return
+ * @param wttpUrl - Optional WTTP URL object to include in the response
  * @returns A GETResponseStruct with the specified error status code
  */
 export function wttpErrorResponse(statusCode: bigint, wttpUrl?: WttpUrl): GETResponseStruct {

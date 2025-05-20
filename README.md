@@ -14,7 +14,7 @@ npm install wttp-handler-v3
 
 ## Configuration
 
-The handler uses a configuration file (`wttp.config.ts`) to specify network details and gateway contract addresses. You can customize this configuration for your specific needs.
+The handler uses a configuration file ([`wttp.config.ts`](./wttp.config.ts)) to specify network details and gateway contract addresses. You can customize this configuration for your specific needs.
 
 ```typescript
 // Example configuration
@@ -69,6 +69,10 @@ const response = await wttpGet('wttp://example.eth/index.html', {
 - `wttpHead(url, options?)`: Performs a HEAD request to a WTTP URL
 - `getWttpUrl(url)`: Parses and validates a WTTP URL
 - `resolveEnsName(name)`: Resolves an ENS name to its Ethereum address
+- `formatEthereumAddress(address)`: Formats an Ethereum address to a checksum address
+- `getNetworkAlias(alias)`: Resolves a network alias to its canonical name
+- `getHostAddress(hostname)`: Resolves a hostname to its Ethereum address
+- `getGatewayAddress(url)`: Extracts the gateway address from a WTTP URL
 
 ### Types
 
@@ -76,6 +80,8 @@ const response = await wttpGet('wttp://example.eth/index.html', {
 - `WttpProvider`: Provider for WTTP contract interactions
 - `GETOptions`: Options for GET requests
 - `HEADOptions`: Options for HEAD requests
+- `WttpConfig`: Configuration for WTTP networks
+- `WttpHandlerConfig`: Configuration for the WTTP Handler
 
 ## Network Support
 
@@ -84,6 +90,16 @@ The handler supports multiple Ethereum networks:
 - Mainnet
 - Sepolia Testnet
 - Local Development Network
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
