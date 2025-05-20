@@ -17,7 +17,7 @@ The WTTP Handler v3 library enables:
 ## Installation
 
 ```bash
-npm install wttp-handler-v3
+npm install wttp-handler
 ```
 
 ## Usage
@@ -25,7 +25,7 @@ npm install wttp-handler-v3
 ### Basic Example
 
 ```typescript
-import { wttpGet, wttpHead } from 'wttp-handler-v3';
+import { wttpGet, wttpHead } from 'wttp-handler';
 
 // Make a GET request to a WTTP resource
 async function fetchWttpResource() {
@@ -57,7 +57,7 @@ async function checkWttpResource() {
 ### Using ENS Names
 
 ```typescript
-import { wttpGet } from 'wttp-handler-v3';
+import { wttpGet } from 'wttp-handler';
 
 // Fetch content from a site using ENS name
 async function fetchFromEns() {
@@ -73,7 +73,7 @@ async function fetchFromEns() {
 ### Specifying Network
 
 ```typescript
-import { wttpGet } from 'wttp-handler-v3';
+import { wttpGet } from 'wttp-handler';
 
 // Fetch from a specific network using port notation
 async function fetchFromNetwork() {
@@ -88,7 +88,7 @@ async function fetchFromNetwork() {
 ### Using with Authentication
 
 ```typescript
-import { wttpGet, GETOptions } from 'wttp-handler-v3';
+import { wttpGet, GETOptions } from 'wttp-handler';
 import { ethers } from 'ethers';
 
 async function fetchWithSigner() {
