@@ -11,6 +11,7 @@
  * - Making HEAD and GET requests to WTTP resources
  */
 
+// Import from the root directory for compatibility with the build process
 import {  
     WttpGatewayFactory, 
     Web3SiteFactory,
