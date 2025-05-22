@@ -2,10 +2,29 @@
   "name": "wttp-handler-v3",
   "version": "0.3.0",
   "description": "WTTP handler for typescript/node projects",
-  "type": "module",
-  "main": "index.js",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.cjs.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./wttp.config": {
+      "import": "./dist/wttp.config.js",
+      "require": "./dist/wttp.config.cjs",
+      "types": "./dist/wttp.config.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "test": "mocha test/**/*.test.ts"
+    "build": "rollup -c && node scripts/copy-wttp-config.cjs",
+    "test": "mocha test/**/*.test.ts",
+    "test:bundles": "node test-bundles.cjs",
+    "prepublishOnly": "npm run build && npm run test:bundles"
   },
   "repository": {
     "type": "git",
@@ -23,12 +42,18 @@
   },
   "homepage": "https://github.com/TechnicallyWeb3/wttp-handler-v3#readme",
   "devDependencies": {
-    "ethers": "^6.14.1",
+    "@rollup/plugin-commonjs": "^28.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-typescript": "^12.1.2",
     "@types/chai": "^5.2.2",
     "@types/mocha": "^10.0.10",
     "chai": "^5.2.0",
+    "ethers": "^6.14.1",
     "mocha": "^11.3.0",
+    "rollup": "^4.41.0",
+    "rollup-plugin-dts": "^6.2.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
-  }
+  },
+  "type": "module"
 }

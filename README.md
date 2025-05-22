@@ -20,6 +20,35 @@ The WTTP Handler v3 library enables:
 npm install wttp-handler
 ```
 
+## Bundle Information
+
+This library is bundled for both ESM and CommonJS environments:
+
+- **ESM (ECMAScript Modules)**: Modern JavaScript environments, including browsers with `<script type="module">` and Node.js with `"type": "module"` in package.json
+- **CommonJS**: Traditional Node.js environments using `require()`
+
+### Import Examples
+
+#### ESM (ECMAScript Modules)
+
+```javascript
+// Using import syntax
+import { wttpGet, wttpHead, formatEthereumAddress } from 'wttp-handler';
+
+// Using the library
+const formattedAddress = formatEthereumAddress('0xa80ffe9f24B1aCFf8B57036C02DA8A0983159322');
+```
+
+#### CommonJS
+
+```javascript
+// Using require syntax
+const { wttpGet, wttpHead, formatEthereumAddress } = require('wttp-handler');
+
+// Using the library
+const formattedAddress = formatEthereumAddress('0xa80ffe9f24B1aCFf8B57036C02DA8A0983159322');
+```
+
 ## Usage
 
 ### Basic Example
