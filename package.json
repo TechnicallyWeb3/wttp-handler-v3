@@ -2,7 +2,6 @@
   "name": "wttp-handler-v3",
   "version": "0.3.0",
   "description": "WTTP handler for typescript/node projects",
-  "type": "module",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
@@ -24,7 +23,8 @@
   "scripts": {
     "build": "rollup -c && node scripts/copy-wttp-config.cjs",
     "test": "mocha test/**/*.test.ts",
-    "prepublishOnly": "npm run build"
+    "test:bundles": "node test-bundles.cjs",
+    "prepublishOnly": "npm run build && npm run test:bundles"
   },
   "repository": {
     "type": "git",
@@ -54,5 +54,6 @@
     "rollup-plugin-dts": "^6.2.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
-  }
+  },
+  "type": "module"
 }

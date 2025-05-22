@@ -38,7 +38,7 @@ export default [
         format: 'cjs',
         sourcemap: true,
         exports: 'named',
-        interop: 'auto'
+        esModule: false
       }
     ],
     external: ['ethers'],
