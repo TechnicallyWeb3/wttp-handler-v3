@@ -15,6 +15,13 @@ export {
   WTTP_VERSION
 } from "./utils/wttpMethods";
 
+// Export fetch implementation
+export {
+  fetch,
+  initWttpHandler,
+  mockWttpGet
+} from "./utils/wttpFetch";
+
 // Export types and interfaces
 export type {
   WttpUrl,
@@ -22,7 +29,8 @@ export type {
   WttpProvider,
   GETOptions,
   HEADOptions,
-  WttpNetworkConfig
+  WttpNetworkConfig,
+  WttpHandlerConfig
 } from "./interfaces/WTTPTypes";
 
 // Export contract interfaces
